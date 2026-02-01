@@ -155,11 +155,14 @@ For detailed technical documentation, see [docs/methodology.md](docs/methodology
 ## Author
 
 **Moses Trundle-Strachan**
-Geography & Data Science Student at University of Washington
+Geography - Data Science
+Statistics Minor
+Student at University of Washington
 
 ---
 
 ## License
 
 This project uses publicly available data from Seattle GIS Open Data Portal.
+
 

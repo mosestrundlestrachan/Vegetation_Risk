@@ -217,3 +217,54 @@ Output: `scored_segments.gpkg`
 - `citywide_risk_map.png` - Overview of all Seattle area
 - `detail_high_risk_area.png` - Zoomed view of First Hill
 
+
+---
+
+## 08_visualize.py (Improved)
+**Run time:** 2026-02-01 19:59:21
+
+### Improvements Made
+- Added OpenStreetMap basemap (CartoDB Positron)
+- Improved color contrast (bright red, golden yellow, forest green)
+- Added all neighborhood labels with white halo
+- Increased line widths for better visibility
+- Larger figure size and improved legend
+
+### Outputs
+- `citywide_risk_map.png` - Overview with basemap and labels
+- `detail_high_risk_area.png` - Zoomed view of First Hill
+
+
+---
+
+## 08_visualize.py (Improved)
+**Run time:** 2026-02-01 19:59:21
+
+### Improvements Made
+- Added OpenStreetMap basemap (CartoDB Positron)
+- Improved color contrast (bright red, golden yellow, forest green)
+- Added all neighborhood labels with white halo
+- Increased line widths for better visibility
+- Larger figure size and improved legend
+
+### Outputs
+- `citywide_risk_map.png` - Overview with basemap and labels
+- `detail_high_risk_area.png` - Zoomed view of First Hill
+
+
+---
+
+## 08_visualize.py (Improved)
+**Run time:** 2026-02-01 20:03:26
+
+### Improvements Made
+- Added OpenStreetMap basemap (CartoDB Positron)
+- Improved color contrast (bright red, golden yellow, forest green)
+- Added all neighborhood labels with white halo
+- Increased line widths for better visibility
+- Larger figure size and improved legend
+
+### Outputs
+- `citywide_risk_map.png` - Overview with basemap and labels
+- `detail_high_risk_area.png` - Zoomed view of First Hill
+

@@ -1,6 +1,6 @@
 # Vegetation-Infrastructure Conflict Prioritization Model
 
-## Seattle City Light Portfolio Project
+## Seattle Area Case Study
 
 A GIS-based risk model that identifies and prioritizes overhead power line segments for vegetation management, helping utility crews focus proactive trimming efforts where they matter most.
 
@@ -10,7 +10,7 @@ A GIS-based risk model that identifies and prioritizes overhead power line segme
 
 ## Overview
 
-Vegetation contact is a leading cause of power outages. This project implements a spatial risk scoring model that analyzes Seattle City Light's overhead distribution network to identify line segments with the highest vegetation-related risk.
+Vegetation contact is a leading cause of power outages. This project implements a spatial risk scoring model that analyzes an overhead distribution network to identify line segments with the highest vegetation-related risk.
 
 ### Key Outputs
 - **1,624 miles** of overhead lines analyzed
@@ -92,8 +92,8 @@ VegetationRisk_SCL/
 | Dataset | Records | Source |
 |---------|---------|--------|
 | Tree Canopy (2021) | 408,646 polygons | Seattle GIS Open Data |
-| SCL Power Lines | 147,538 segments | Seattle City Light |
-| SCL Poles | 101,269 points | Seattle City Light |
+| Power Lines | 147,538 segments | Seattle GIS Open Data |
+| Utility Poles | 101,269 points | Seattle GIS Open Data |
 | Fire Stations | 36 points | Seattle GIS Open Data |
 | Hospitals | 19 points | Seattle GIS Open Data |
 | Neighborhoods | 94 polygons | Seattle GIS Open Data |
@@ -156,8 +156,6 @@ For detailed technical documentation, see [docs/methodology.md](docs/methodology
 
 **Moses Trundle-Strachan**
 Geography & Data Science Student at University of Washington
-
-Portfolio project for GIS Analyst Internship at Seattle City Light.
 
 ---
 

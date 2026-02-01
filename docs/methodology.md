@@ -3,7 +3,7 @@
 
 ### Overview
 
-This document describes the methodology used to identify and prioritize overhead power line segments at risk of vegetation-related outages for Seattle City Light.
+This document describes the methodology used to identify and prioritize overhead power line segments at risk of vegetation-related outages.
 
 ---
 
@@ -12,8 +12,8 @@ This document describes the methodology used to identify and prioritize overhead
 | Dataset | Description | Source |
 |---------|-------------|--------|
 | Seattle Tree Canopy 2021 | LiDAR-derived canopy polygons | Seattle GIS Open Data |
-| Seattle City Light Lines | Power line network (OH/UG) | Seattle City Light |
-| Seattle City Light Poles | Utility pole locations | Seattle City Light |
+| Power Lines | Power line network (OH/UG) | Seattle GIS Open Data |
+| Utility Poles | Utility pole locations | Seattle GIS Open Data |
 | Fire Stations | Critical facility points | Seattle GIS Open Data |
 | Hospitals | Critical facility points | Seattle GIS Open Data |
 | Neighborhoods | Boundary polygons | Seattle GIS Open Data |

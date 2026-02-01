@@ -1,21 +1,26 @@
 """
 08_visualize.py
 Vegetation-Infrastructure Conflict Prioritization Model
-Seattle City Light Portfolio Project
+Seattle Area Case Study
 
 This script creates map visualizations:
-- Citywide risk map colored by risk tier (matplotlib)
+- Citywide risk map with OpenStreetMap basemap
 - Detail map of highest-risk neighborhood
-- Saves to /maps folder
+- All neighborhood labels included
 """
 
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import matplotlib.patheffects as pe
 from matplotlib.lines import Line2D
 from pathlib import Path
 from datetime import datetime
+import contextily as ctx
+import warnings
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings('ignore')
 
 # =============================================================================
 # Configuration
@@ -27,16 +32,16 @@ OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 MAPS_DIR = PROJECT_ROOT / "maps"
 DOCS_DIR = PROJECT_ROOT / "docs"
 
-# Color scheme for risk tiers
+# Improved color scheme - higher contrast
 RISK_COLORS = {
-    'High': '#d62728',      # Red
-    'Medium': '#ff7f0e',    # Orange
-    'Low': '#2ca02c'        # Green
+    'High': '#e31a1c',      # Bright red
+    'Medium': '#fec44f',    # Golden yellow
+    'Low': '#31a354'        # Forest green
 }
 
 # Map styling
 FIGURE_DPI = 300
-BACKGROUND_COLOR = '#f5f5f5'
+WEB_MERCATOR = "EPSG:3857"
 
 # =============================================================================
 # Functions
@@ -47,71 +52,150 @@ def create_citywide_risk_map(segments: gpd.GeoDataFrame,
                               facilities: gpd.GeoDataFrame,
                               save_path: Path) -> plt.Figure:
     """
-    Create citywide map showing all line segments colored by risk tier.
+    Create citywide map with OpenStreetMap basemap and neighborhood labels.
+    Focused on Seattle city boundaries.
     """
     print("\nCreating citywide risk map...")
 
-    fig, ax = plt.subplots(1, 1, figsize=(14, 16))
-    ax.set_facecolor(BACKGROUND_COLOR)
+    # Reproject to Web Mercator for basemap compatibility
+    print("  Reprojecting to Web Mercator...")
+    segments_wm = segments.to_crs(WEB_MERCATOR)
+    neighborhoods_wm = neighborhoods.to_crs(WEB_MERCATOR)
+    facilities_wm = facilities.to_crs(WEB_MERCATOR)
 
-    # Plot neighborhood boundaries as context
-    neighborhoods.plot(
+    # Get Seattle city bounds from neighborhoods (dissolve all neighborhoods)
+    seattle_bounds = neighborhoods_wm.total_bounds  # [minx, miny, maxx, maxy]
+
+    # Add small padding (5%) to focus on Seattle
+    pad_x = (seattle_bounds[2] - seattle_bounds[0]) * 0.05
+    pad_y = (seattle_bounds[3] - seattle_bounds[1]) * 0.05
+
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(14, 18))
+
+    # Plot neighborhood boundaries first (subtle)
+    neighborhoods_wm.plot(
         ax=ax,
-        facecolor='white',
-        edgecolor='gray',
-        linewidth=0.3,
-        alpha=0.5
+        facecolor='none',
+        edgecolor='#444444',
+        linewidth=0.8,
+        alpha=0.7
     )
 
-    # Plot segments by risk tier (Low first, then Medium, then High so High is on top)
+    # Plot segments by risk tier (Low first, then Medium, then High)
+    print("  Plotting segments by risk tier...")
     for tier in ['Low', 'Medium', 'High']:
-        tier_segments = segments[segments['risk_tier'] == tier]
+        tier_segments = segments_wm[segments_wm['risk_tier'] == tier]
         if len(tier_segments) > 0:
-            linewidth = 0.5 if tier == 'Low' else 0.8 if tier == 'Medium' else 1.2
+            # Thicker lines for higher risk
+            if tier == 'Low':
+                linewidth = 0.3
+                alpha = 0.5
+            elif tier == 'Medium':
+                linewidth = 0.6
+                alpha = 0.7
+            else:  # High
+                linewidth = 1.2
+                alpha = 0.9
+
             tier_segments.plot(
                 ax=ax,
                 color=RISK_COLORS[tier],
                 linewidth=linewidth,
-                alpha=0.7
+                alpha=alpha
             )
 
     # Plot critical facilities
-    hospitals = facilities[facilities['facility_type'] == 'hospital']
-    fire_stations = facilities[facilities['facility_type'] == 'fire_station']
+    hospitals = facilities_wm[facilities_wm['facility_type'] == 'hospital']
+    fire_stations = facilities_wm[facilities_wm['facility_type'] == 'fire_station']
 
-    hospitals.plot(ax=ax, color='blue', marker='s', markersize=30,
-                   label='Hospitals', zorder=5, alpha=0.8)
-    fire_stations.plot(ax=ax, color='darkred', marker='^', markersize=25,
-                       label='Fire Stations', zorder=5, alpha=0.8)
+    if len(hospitals) > 0:
+        hospitals.plot(ax=ax, color='#0571b0', marker='H', markersize=60,
+                       zorder=10, alpha=0.9, edgecolor='white', linewidth=0.5)
+    if len(fire_stations) > 0:
+        fire_stations.plot(ax=ax, color='#ca0020', marker='^', markersize=40,
+                           zorder=10, alpha=0.9, edgecolor='white', linewidth=0.5)
 
-    # Create legend
+    # Add basemap (CartoDB Positron - clean, light style)
+    print("  Adding basemap...")
+    try:
+        ctx.add_basemap(
+            ax,
+            source=ctx.providers.CartoDB.Positron,
+            alpha=0.7,
+            attribution_size=6
+        )
+    except Exception as e:
+        print(f"  Warning: Could not add basemap - {e}")
+
+    # Add neighborhood labels
+    print("  Adding neighborhood labels...")
+    for idx, row in neighborhoods_wm.iterrows():
+        if pd.notna(row.get('neighborhood')):
+            centroid = row.geometry.centroid
+            ax.annotate(
+                row['neighborhood'],
+                xy=(centroid.x, centroid.y),
+                fontsize=5,
+                ha='center',
+                va='center',
+                color='#333333',
+                fontweight='bold',
+                path_effects=[
+                    pe.withStroke(linewidth=2, foreground='white')
+                ]
+            )
+
+    # Set map bounds to focus on Seattle
+    ax.set_xlim(seattle_bounds[0] - pad_x, seattle_bounds[2] + pad_x)
+    ax.set_ylim(seattle_bounds[1] - pad_y, seattle_bounds[3] + pad_y)
+
+    # Create legend - position inside the map area (lower left, inside Seattle outline)
     legend_elements = [
-        Line2D([0], [0], color=RISK_COLORS['High'], linewidth=2, label='High Risk'),
+        Line2D([0], [0], color=RISK_COLORS['High'], linewidth=3, label='High Risk'),
         Line2D([0], [0], color=RISK_COLORS['Medium'], linewidth=2, label='Medium Risk'),
-        Line2D([0], [0], color=RISK_COLORS['Low'], linewidth=2, label='Low Risk'),
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='blue',
-               markersize=10, label='Hospitals'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='darkred',
-               markersize=10, label='Fire Stations'),
+        Line2D([0], [0], color=RISK_COLORS['Low'], linewidth=1, label='Low Risk'),
+        Line2D([0], [0], marker='H', color='w', markerfacecolor='#0571b0',
+               markersize=12, label='Hospitals', linestyle='None'),
+        Line2D([0], [0], marker='^', color='w', markerfacecolor='#ca0020',
+               markersize=10, label='Fire Stations', linestyle='None'),
     ]
-    ax.legend(handles=legend_elements, loc='lower right', fontsize=10,
-              framealpha=0.9, edgecolor='gray')
+    ax.legend(
+        handles=legend_elements,
+        loc='lower left',
+        fontsize=9,
+        framealpha=0.95,
+        edgecolor='gray',
+        fancybox=True,
+        bbox_to_anchor=(0.02, 0.02)
+    )
 
-    # Titles and labels
-    ax.set_title('Seattle City Light\nVegetation-Infrastructure Conflict Risk Assessment',
-                fontsize=16, fontweight='bold', pad=20)
+    # Title
+    ax.set_title(
+        'Seattle Area\nVegetation-Infrastructure Conflict Risk Assessment',
+        fontsize=18,
+        fontweight='bold',
+        pad=20
+    )
 
-    # Add subtitle with statistics
+    # Subtitle with statistics
     total_miles = segments['length_ft'].sum() / 5280
     high_risk_miles = segments[segments['risk_tier'] == 'High']['length_ft'].sum() / 5280
-    subtitle = f'Total: {total_miles:.0f} miles of overhead lines | High Risk: {high_risk_miles:.0f} miles ({high_risk_miles/total_miles*100:.0f}%)'
-    ax.text(0.5, -0.02, subtitle, transform=ax.transAxes, ha='center',
-            fontsize=10, color='gray')
+    subtitle = f'Total: {total_miles:.0f} miles of overhead lines  |  High Risk: {high_risk_miles:.0f} miles ({high_risk_miles/total_miles*100:.0f}%)'
+    ax.text(
+        0.5, -0.02,
+        subtitle,
+        transform=ax.transAxes,
+        ha='center',
+        fontsize=11,
+        color='#555555'
+    )
 
     ax.set_axis_off()
     plt.tight_layout()
 
     # Save
+    print("  Saving map...")
     fig.savefig(save_path, dpi=FIGURE_DPI, bbox_inches='tight',
                 facecolor='white', edgecolor='none')
     print(f"  Saved: {save_path}")
@@ -125,12 +209,17 @@ def create_detail_map(segments: gpd.GeoDataFrame,
                       neighborhood_name: str,
                       save_path: Path) -> plt.Figure:
     """
-    Create detail map of a specific high-risk neighborhood.
+    Create detail map of a specific neighborhood with basemap.
     """
     print(f"\nCreating detail map for {neighborhood_name}...")
 
+    # Reproject to Web Mercator
+    segments_wm = segments.to_crs(WEB_MERCATOR)
+    neighborhoods_wm = neighborhoods.to_crs(WEB_MERCATOR)
+    facilities_wm = facilities.to_crs(WEB_MERCATOR)
+
     # Get the neighborhood boundary
-    hood = neighborhoods[neighborhoods['neighborhood'] == neighborhood_name]
+    hood = neighborhoods_wm[neighborhoods_wm['neighborhood'] == neighborhood_name]
     if len(hood) == 0:
         print(f"  Warning: Neighborhood '{neighborhood_name}' not found")
         return None
@@ -139,37 +228,45 @@ def create_detail_map(segments: gpd.GeoDataFrame,
 
     # Get bounding box with padding
     minx, miny, maxx, maxy = hood_geom.bounds
-    pad = (maxx - minx) * 0.1  # 10% padding
-    bounds = (minx - pad, miny - pad, maxx + pad, maxy + pad)
+    pad_x = (maxx - minx) * 0.15
+    pad_y = (maxy - miny) * 0.15
+    bounds = (minx - pad_x, miny - pad_y, maxx + pad_x, maxy + pad_y)
 
-    # Filter segments within bounds
-    segments_bbox = segments.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
+    # Filter data within bounds
+    segments_bbox = segments_wm.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
+    facilities_bbox = facilities_wm.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
 
-    # Filter facilities within bounds
-    facilities_bbox = facilities.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
-
-    fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-    ax.set_facecolor(BACKGROUND_COLOR)
-
-    # Plot neighborhood boundary
-    hood.plot(ax=ax, facecolor='white', edgecolor='black', linewidth=2)
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(14, 14))
 
     # Plot nearby neighborhoods for context
-    nearby = neighborhoods[neighborhoods['neighborhood'] != neighborhood_name]
+    nearby = neighborhoods_wm[neighborhoods_wm['neighborhood'] != neighborhood_name]
     nearby_bbox = nearby.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
-    nearby_bbox.plot(ax=ax, facecolor='#e8e8e8', edgecolor='gray',
+    nearby_bbox.plot(ax=ax, facecolor='#f0f0f0', edgecolor='#999999',
                      linewidth=0.5, alpha=0.5)
+
+    # Plot target neighborhood boundary
+    hood.plot(ax=ax, facecolor='none', edgecolor='#333333', linewidth=2.5)
 
     # Plot segments by risk tier
     for tier in ['Low', 'Medium', 'High']:
         tier_segments = segments_bbox[segments_bbox['risk_tier'] == tier]
         if len(tier_segments) > 0:
-            linewidth = 1.0 if tier == 'Low' else 1.5 if tier == 'Medium' else 2.5
+            if tier == 'Low':
+                linewidth = 1.0
+                alpha = 0.6
+            elif tier == 'Medium':
+                linewidth = 2.0
+                alpha = 0.8
+            else:  # High
+                linewidth = 3.5
+                alpha = 0.95
+
             tier_segments.plot(
                 ax=ax,
                 color=RISK_COLORS[tier],
                 linewidth=linewidth,
-                alpha=0.8
+                alpha=alpha
             )
 
     # Plot facilities
@@ -178,44 +275,66 @@ def create_detail_map(segments: gpd.GeoDataFrame,
         fire_stations = facilities_bbox[facilities_bbox['facility_type'] == 'fire_station']
 
         if len(hospitals) > 0:
-            hospitals.plot(ax=ax, color='blue', marker='s', markersize=80,
-                          zorder=5, alpha=0.9)
+            hospitals.plot(ax=ax, color='#0571b0', marker='H', markersize=150,
+                          zorder=10, alpha=0.9, edgecolor='white', linewidth=1)
         if len(fire_stations) > 0:
-            fire_stations.plot(ax=ax, color='darkred', marker='^', markersize=60,
-                              zorder=5, alpha=0.9)
+            fire_stations.plot(ax=ax, color='#ca0020', marker='^', markersize=120,
+                              zorder=10, alpha=0.9, edgecolor='white', linewidth=1)
 
     # Set bounds
     ax.set_xlim(bounds[0], bounds[2])
     ax.set_ylim(bounds[1], bounds[3])
 
+    # Add basemap
+    try:
+        ctx.add_basemap(
+            ax,
+            source=ctx.providers.CartoDB.Positron,
+            alpha=0.6,
+            attribution_size=6
+        )
+    except Exception as e:
+        print(f"  Warning: Could not add basemap - {e}")
+
     # Legend
     legend_elements = [
-        Line2D([0], [0], color=RISK_COLORS['High'], linewidth=3, label='High Risk'),
-        Line2D([0], [0], color=RISK_COLORS['Medium'], linewidth=2, label='Medium Risk'),
-        Line2D([0], [0], color=RISK_COLORS['Low'], linewidth=1, label='Low Risk'),
+        Line2D([0], [0], color=RISK_COLORS['High'], linewidth=4, label='High Risk'),
+        Line2D([0], [0], color=RISK_COLORS['Medium'], linewidth=3, label='Medium Risk'),
+        Line2D([0], [0], color=RISK_COLORS['Low'], linewidth=2, label='Low Risk'),
     ]
 
     if len(facilities_bbox) > 0:
         legend_elements.extend([
-            Line2D([0], [0], marker='s', color='w', markerfacecolor='blue',
-                   markersize=10, label='Hospitals'),
-            Line2D([0], [0], marker='^', color='w', markerfacecolor='darkred',
-                   markersize=10, label='Fire Stations'),
+            Line2D([0], [0], marker='H', color='w', markerfacecolor='#0571b0',
+                   markersize=14, label='Hospitals', linestyle='None'),
+            Line2D([0], [0], marker='^', color='w', markerfacecolor='#ca0020',
+                   markersize=12, label='Fire Stations', linestyle='None'),
         ])
 
-    ax.legend(handles=legend_elements, loc='upper right', fontsize=10,
-              framealpha=0.9, edgecolor='gray')
+    ax.legend(
+        handles=legend_elements,
+        loc='upper right',
+        fontsize=11,
+        framealpha=0.95,
+        edgecolor='gray',
+        fancybox=True
+    )
 
-    # Calculate stats for this neighborhood
-    hood_segments = segments[segments.geometry.centroid.within(hood_geom)]
+    # Calculate stats for this neighborhood (use original CRS data)
+    hood_orig = neighborhoods[neighborhoods['neighborhood'] == neighborhood_name]
+    hood_geom_orig = hood_orig.geometry.iloc[0]
+    hood_segments = segments[segments.geometry.centroid.within(hood_geom_orig)]
     total_segs = len(hood_segments)
     high_segs = (hood_segments['risk_tier'] == 'High').sum()
     pct_high = high_segs / total_segs * 100 if total_segs > 0 else 0
 
     # Title
-    ax.set_title(f'{neighborhood_name} - Detail View\n'
-                f'{total_segs:,} segments | {high_segs:,} high risk ({pct_high:.0f}%)',
-                fontsize=14, fontweight='bold', pad=15)
+    ax.set_title(
+        f'{neighborhood_name}\n{total_segs:,} segments  |  {high_segs:,} high risk ({pct_high:.0f}%)',
+        fontsize=16,
+        fontweight='bold',
+        pad=15
+    )
 
     ax.set_axis_off()
     plt.tight_layout()
@@ -231,17 +350,14 @@ def create_detail_map(segments: gpd.GeoDataFrame,
 def find_highest_risk_neighborhood(neighborhood_summary_path: Path) -> str:
     """Find the neighborhood with highest risk percentage."""
     summary = pd.read_csv(neighborhood_summary_path)
-
-    # Filter out "Outside City Limits" and find highest risk
     city_hoods = summary[summary['neighborhood'] != 'Outside City Limits']
     highest_risk = city_hoods.loc[city_hoods['pct_high_risk'].idxmax(), 'neighborhood']
-
     return highest_risk
 
 
 def main():
     print("\n" + "="*60)
-    print("08_VISUALIZE - Create Map Visualizations")
+    print("08_VISUALIZE - Create Improved Map Visualizations")
     print("="*60)
 
     # Ensure output directory exists
@@ -266,7 +382,6 @@ def main():
     # ==========================================================================
     # Map 2: Detail Map of Highest-Risk Neighborhood
     # ==========================================================================
-    # Find highest risk neighborhood
     highest_risk_hood = find_highest_risk_neighborhood(
         OUTPUTS_DIR / "neighborhood_summary.csv"
     )
@@ -290,15 +405,18 @@ def main():
     log_content = f"""
 ---
 
-## 08_visualize.py
+## 08_visualize.py (Improved)
 **Run time:** {timestamp}
 
-### Actions
-- Created citywide risk map (all segments colored by tier)
-- Created detail map of highest-risk neighborhood ({highest_risk_hood})
+### Improvements Made
+- Added OpenStreetMap basemap (CartoDB Positron)
+- Improved color contrast (bright red, golden yellow, forest green)
+- Added all neighborhood labels with white halo
+- Increased line widths for better visibility
+- Larger figure size and improved legend
 
 ### Outputs
-- `citywide_risk_map.png` - Overview of all Seattle area
+- `citywide_risk_map.png` - Overview with basemap and labels
 - `detail_high_risk_area.png` - Zoomed view of {highest_risk_hood}
 
 """

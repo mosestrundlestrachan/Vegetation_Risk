@@ -162,3 +162,4 @@ Geography & Data Science Student at University of Washington
 ## License
 
 This project uses publicly available data from Seattle GIS Open Data Portal.
+
